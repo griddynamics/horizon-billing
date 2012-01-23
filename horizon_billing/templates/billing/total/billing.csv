@@ -1,0 +1,5 @@
+Usage Report For Period:,{{datetime_start|date:"b. d Y H:i"}},/,{{datetime_end|date:"b. d Y H:i"}}
+
+Tenant Id,Tenant Name,Instances count,Images count,CPU (CPU*HR),RAM (MB*HR),Disk for instances (GB*HR),Disk for images (GB*HR)
+{%for project in usage%}{{project.id}},{{project.name}},{{project.instances.count}},{{project.images.count}},{{project.instances.usage.vcpus_h|default:0}},{{project.instances.usage.memory_mb_h|default:0}},{{project.instances.usage.local_gb_h|default:0}},{{project.images.usage.local_gb_h|default:0}}
+{% endfor %}

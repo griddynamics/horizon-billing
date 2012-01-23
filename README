@@ -1,0 +1,6 @@
+This is a simple Django-based interface for nova-billing.
+
+To enable it in dashboard, install the horizon_billing package and turn it 
+on in /etc/openstack-dashboard/local/local_settings.py - add 'horizon_billing'
+to INSTALLED_APPS tuple.
+
