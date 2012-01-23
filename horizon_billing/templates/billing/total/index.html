@@ -1,0 +1,59 @@
+{% extends 'billing/base.html' %}
+{% load i18n parse_date sizeformat %}
+{% block title %}Billing{% endblock %}
+
+{% block page_header %}
+  {% include "horizon/common/_page_header.html" with title="Billing: "|add:"<small>This page shows your cloud usage.</small>" %}
+{% endblock page_header %}
+
+
+{% block billing_main %}
+
+<form action="" method="get" id="date_form">
+  <!-- {% csrf_token %} -->
+  <h3>{% trans "Select a month to query its usage" %}: </h3>
+  <div class="form-row">
+      Start: {{ dateform.date_start }}
+      End: {{ dateform.date_end }}
+    <input class="btn small" type="submit"/>
+  </div>
+</form>
+
+    <div class='table_title wide'>
+      <a class="csv_download_link pull-right" href="{{ csv_link }}">{% trans "Download CSV" %}</a>
+
+      <h3>Usage Summary by Tenant</h3>
+    </div>
+
+    <table class="zebra-striped">
+      <tr id='headings'>
+        <th>{% trans "Id" %}</th>
+        <th>{% trans "Name" %}</th>
+        <th>{% trans "Instances count" %}</th>
+        <th>{% trans "Images count" %}</th>
+        <th>{% trans "CPU, CPU-HR" %}</th>
+        <th>{% trans "RAM, MB-HR" %}</th>
+        <th>{% trans "Disk for instances, GB-HR" %}</th>
+        <th>{% trans "Disk for images, GB-HR" %}</th>
+      </tr>
+      <tbody class='main'>
+        {% for project in usage %}
+        <tr class="{% cycle 'odd' 'even' %}">
+            <td><a href="{% url horizon:billing:for_tenant:index_for_tenant project.id %}">{{ project.id }}</a></td>
+            <td>{{ project.name }}</td>
+            <td>{{ project.instances.count }}</td>
+            <td>{{ project.images.count }}</td>
+            <td>{{ project.instances.usage.vcpus_h|floatformat|default:0 }}</td>
+            <td>{{ project.instances.usage.memory_mb_h|floatformat|default:0 }}</td>
+            <td>{{ project.instances.usage.local_gb_h|floatformat|default:0 }}</td>
+            <td>{{ project.images.usage.local_gb_h|floatformat|default:0 }}</td>
+        </tr>
+        {% empty %}
+          <tr>
+              <td colspan=8>{% trans "No tenants." %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+{% endblock %}
