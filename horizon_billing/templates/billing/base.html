@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block sidebar %}
+  {% include 'horizon/common/_sidebar.html' %}
+{% endblock %}
+
+{% block main %}
+  <div id='main_content' class="content">
+    {% block page_header %}{% endblock %}
+    {% include "horizon/_messages.html" %}
+    {% block billing_main %}{% endblock %}
+  </div>
+{% endblock %}
