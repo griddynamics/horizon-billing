@@ -88,9 +88,9 @@ def usage(request, tenant_id):
         if tenant_id:
             usage = usage[0]
             for item in usage["instances"]["items"]:
-                item["lifetime_day"] = item["lifetime_sec"] / (3600 * 12.0)
+                item["lifetime_day"] = item["lifetime_sec"] / (3600 * 24.0)
             for item in usage["images"]["items"]:
-                item["lifetime_day"] = item["lifetime_sec"] / (3600 * 12.0)
+                item["lifetime_day"] = item["lifetime_sec"] / (3600 * 24.0)
     
     template_dir = 'billing/for_tenant' if tenant_id else 'billing/total'
         
