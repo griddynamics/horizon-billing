@@ -5,7 +5,7 @@
 %define mod_name horizon_billing
 
 Name:             horizon-billing
-Version:          0.0.2
+Version:          2.0.0
 Release:          1
 Summary:          Django based interface for nova-billing
 License:          GNU GPL v3
@@ -49,3 +49,5 @@ This package contains the web interface for nova billing server.
 
 
 %changelog
+* Fri Apr 27 2012 Alessio Ababilov <aababilov@griddynamics.com>
+- Update to nova-billing v2
