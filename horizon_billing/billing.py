@@ -15,7 +15,3 @@ def billing_api(request):
                     (request.user.token, management_url))
     return BillingClient(auth_token=request.user.token,
                          management_url=management_url)
-
-
-def billing_query(request, **kwargs):
-    return billing_api(request).query(**kwargs)

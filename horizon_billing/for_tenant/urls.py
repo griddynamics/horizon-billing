@@ -23,6 +23,6 @@ from django.conf.urls.defaults import *
 
 
 urlpatterns = patterns('horizon_billing',
-    url(r'^$', 'total.views.usage_for_tenant', name='index'),
-    url(r'^(?P<tenant_id>[^/]+)$', 'total.views.usage_for_tenant', name='index_for_tenant'),
+    url(r'^$', 'total.views.bill_for_tenant', name='index'),
+    url(r'^(?P<tenant_id>[^/]+)$', 'total.views.bill_for_tenant', name='index_for_tenant'),
 )

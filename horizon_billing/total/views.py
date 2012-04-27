@@ -40,10 +40,38 @@ from horizon import forms
 from horizon import test
 
 
-from ..billing import billing_query
+from ..billing import billing_api
 from ..forms import DateIntervalForm
 
+
 LOG = logging.getLogger(__name__)
+
+
+def total_seconds(td):
+    """This function is added for portability
+    because timedelta.total_seconds() 
+    was introduced only in python 2.7."""
+    return (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6) / 10**6
+
+
+def str_to_datetime(dtstr):
+    """
+    Convert string to datetime.datetime. String should be in ISO 8601 format.
+    The function returns ``None`` for invalid date string.
+    """
+    if not dtstr:
+        return None
+    if dtstr.endswith("Z"):
+        dtstr = dtstr[:-1]
+    for fmt in ("%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%d %H:%M:%S.%f"):
+        try:
+            return datetime.datetime.strptime(dtstr, fmt)
+        except ValueError:
+            pass
+    return None
 
 
 def _get_datetime(request, prefix):
@@ -57,43 +85,73 @@ def _get_datetime(request, prefix):
             datetime.date.today(), datetime.time(0))
 
 
-def usage(request, tenant_id):
+def _linear_bill(bill):
+    linear_bill = []
+    def print_res(res, depth):
+        res["depth"] = depth * 16
+        res["hier"] = "+" * depth
+        try:
+            res["lifetime_day"] = total_seconds(
+                (str_to_datetime(res["destroyed_at"]) 
+                 or datetime.datetime.utcnow()) -
+                str_to_datetime(res["created_at"])) / 3600 * 24.0
+        except TypeError:
+            res["lifetime_day"] = "?"
+        linear_bill.append(res)
+        depth += 1
+        for child in res.get("children", ()):
+            print_res(child, depth)
+        res["children"] = ()
+
+    for acc in bill:
+        linear_bill = []
+        for res in sorted(acc["resources"], key=lambda res: (res["rtype"], res["name"])):
+            print_res(res, 0)
+        acc["resources"] = linear_bill 
+
+
+def get_bill(request, tenant_id):
     datetime_end = _get_datetime(request, "date_end")
     datetime_start = _get_datetime(request, "date_start")
     if datetime_start > datetime_end:
         datetime_start, datetime_end = datetime_end, datetime_start
-    LOG.debug("%s %s" % (datetime_start, datetime_end))
+    if datetime_end - datetime_start < datetime.timedelta(days=1):
+        datetime_start -= datetime.timedelta(days=1)
 
     dateform = DateIntervalForm()
     dateform['date_start'].field.initial = datetime_start.date()
     dateform['date_end'].field.initial = datetime_end.date()
 
-    usage = {}
+    bill = {}
+    rtype_names = set()
     try:
-        usage = billing_query(
-            request,
+        bill = billing_api(request).bill(
             period_start=datetime_start,
-            period_end=datetime_end + datetime.timedelta(days=1),
-            tenant_id=tenant_id,
-            include=(
-                "instances-long,images-long"
-                if tenant_id
-                else "instances,images")
-            )["projects"]
+            period_end=datetime_end,
+            account=tenant_id)
     except Exception, e:
-        LOG.exception(_('Exception in instance usage'))
+        LOG.exception(_('Exception in bill'))
 
-        messages.error(request, _('Unable to get usage info: %s') % e.message)
+        messages.error(request, _('Unable to get the bill: %s') % e.message)
     else:
         if tenant_id:
-            usage = usage[0]
-            for item in usage["instances"]["items"]:
-                item["lifetime_day"] = item["lifetime_sec"] / (3600 * 24.0)
-            for item in usage["images"]["items"]:
-                item["lifetime_day"] = item["lifetime_sec"] / (3600 * 24.0)
+            _linear_bill(bill)
+            bill = bill[0]
+        else:
+            for acc in bill:
+                rtypes = {}
+                for res in acc["resources"]:
+                    rtypes[res["rtype"]] = rtypes.get(res["rtype"], 0.0) + res["cost"]
+                del acc["resources"]
+                acc["rtypes"] = rtypes
+                rtype_names |= set(rtypes.iterkeys())
+            rtype_names = sorted(rtype_names)
+            for acc in bill:
+                rtypes = acc["rtypes"]
+                acc["rtypes"] = [rtypes.get(name, 0.0) for name in rtype_names]
     
     template_dir = 'billing/for_tenant' if tenant_id else 'billing/total'
-        
+
     if request.GET.get('format', 'html') == 'csv':
         template_name = '%s/billing.csv' % template_dir
         mimetype = "text/csv"
@@ -105,19 +163,20 @@ def usage(request, tenant_id):
 
     return shortcuts.render(request, template_name, {
             'dateform': dateform,
-            'usage': usage,
+            'bill': bill,
             'csv_link': '?format=csv',
             'datetime_start': datetime_start,
             'datetime_end': datetime_end,
             'dash_url': dash_url,
+            'rtype_names': rtype_names,
             }, content_type=mimetype)
 
 
 @login_required
-def usage_for_tenant(request, tenant_id=None):
-    return usage(request, tenant_id or request.user.tenant_id)
+def bill_for_tenant(request, tenant_id=None):
+    return get_bill(request, tenant_id or request.user.tenant_id)
 
 
 @login_required
-def usage_total(request, tenant_id=None):
-    return usage(request, None)
+def bill_total(request, tenant_id=None):
+    return get_bill(request, None)

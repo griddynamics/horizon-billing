@@ -1,6 +1,6 @@
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
 
-
+from datetime import datetime
 import httplib
 import urllib
 import json
@@ -9,7 +9,7 @@ import logging
 import urlparse
 
 
-_logger = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 class ClientException(Exception):
@@ -35,9 +35,9 @@ class HTTPClient(object):
     def http_log(self, args, kwargs, resp, body):
         if os.environ.get('NOVABILLINGCLIENT_DEBUG', False):
             ch = logging.StreamHandler()
-            _logger.setLevel(logging.DEBUG)
-            _logger.addHandler(ch)
-        elif not _logger.isEnabledFor(logging.DEBUG):
+            LOG.setLevel(logging.DEBUG)
+            LOG.addHandler(ch)
+        elif not LOG.isEnabledFor(logging.DEBUG):
             return
 
         string_parts = ["curl -i '%s' -X %s" % args]
@@ -46,11 +46,11 @@ class HTTPClient(object):
             header = ' -H "%s: %s"' % (element, kwargs['headers'][element])
             string_parts.append(header)
 
-        _logger.debug("REQ: %s\n" % "".join(string_parts))
+        LOG.debug("REQ: %s\n" % "".join(string_parts))
         if 'body' in kwargs:
-            _logger.debug("REQ BODY: %s\n" % (kwargs['body']))
+            LOG.debug("REQ BODY: %s\n" % (kwargs['body']))
         if resp:
-            _logger.debug("RESP: %s\nRESP BODY: %s\n", resp.status, body)
+            LOG.debug("RESP: %s\nRESP BODY: %s\n", resp.status, body)
 
     def request(self, *args, **kwargs):
         kwargs.setdefault('headers', kwargs.get('headers', {}))
@@ -88,26 +88,63 @@ class HTTPClient(object):
 
 
 def datetime_to_str(dt):
-    return ("%sZ" % dt.isoformat()) if dt else None
+    return ("%sZ" % dt.isoformat()) if isinstance(dt, datetime) else None
+
+
+def url_escape(s):
+    return urllib.quote(s)
 
 
 class BillingClient(HTTPClient):
-    def query(self, tenant_id=None, time_period=None,
-              period_start=None, period_end=None,
-              include=None):
-        params = []
-        req = "/projects"
-        local_vars = locals()
-        for var in ("time_period", "include",):
-            if local_vars[var]:
-                params.append("%s=%s" % (var, urllib.quote(local_vars[var])))
-        for var in ("period_start", "period_end"):
-            if local_vars[var]:
-                params.append("%s=%s" % (var, urllib.quote(
-                            datetime_to_str(local_vars[var]))))
-        if tenant_id is not None:
-            req = "%s/%s" % (req, tenant_id)
+    @staticmethod
+    def get_resource_tree(resources):
+        res_by_id = dict(((res["id"], res) for res in resources))
+        for res in resources:
+            try:
+                parent = res_by_id[res["parent_id"]]
+            except KeyError:
+                pass
+            else:
+                parent.setdefault("children", []).append(res)
+        return filter(
+            lambda res: res["parent_id"] not in res_by_id,
+            resources)
+
+    @staticmethod
+    def build_resource_tree(bill):
+
+        def calc_cost(res):
+            cost = res.get("cost", 0.0)
+            for child in res.get("children", ()):
+                calc_cost(child)
+                cost += child["cost"]
+            res["cost"] = cost
+
+        for acc in bill:
+            subtree = BillingClient.get_resource_tree(
+                acc["resources"])
+            acc_cost = 0.0
+            for res in subtree:
+                calc_cost(res)
+                acc_cost += res["cost"]
+            acc["cost"] = acc_cost
+            acc["resources"] = subtree
+        return bill
+
+    def bill(self, account=None, time_period=None,
+              period_start=None, period_end=None):
+        if account:
+            params = ["account={0}".format(url_escape(account))]
+        else:
+            params = []
+
+        for opt in ["time_period", "period_start", "period_end"]:
+            par = locals()[opt]
+            if par:
+                params.append("{0}={1}".format(
+                    opt, url_escape(datetime_to_str(par))))
+        req = "/bill"
         if params:
-            req = "%s?%s" % (req, "&".join(params))
+            req = "{0}?{1}".format(req, "&".join(params))
         resp, body = self.get(req)
-        return json.loads(body)
+        return self.build_resource_tree(json.loads(body)["bill"])

@@ -1,14 +1,7 @@
-Usage Report For Period:,{{datetime_start|date:"b. d Y H:i"}},/,{{datetime_end|date:"b. d Y H:i"}}
-Tenant ID:,{{usage.id}}
-VCPUs (CPU*HR):,{{usage.instances.usage.vcpus_h|default:0}}
-Ram (MB*HR):,{{usage.instances.usage.memory_mb_h|default:0}}
-Disk for Instances (GB*HR):,{{usage.instances.usage.local_gb_h|default:0}}
-Disk for Images (GB*HR):,{{usage.images.usage.local_gb_h|default:0}}
+Usage Report For Period:,{{datetime_start|date:"c"}}Z,/,{{datetime_end|date:"c"}}Z
+Tenant ID:,{{bill.name}}
+Total:,{{bill.cost|floatformat:2}}
 
-ID,Name,Life time,VCPUs,Ram,Disk
-{% for instance in usage.instances.items %}{{instance.id}},{{instance.name|addslashes}},{{instance.lifetime_day}},{{instance.usage.vcpus_h|default:0}},{{instance.usage.memory_mb_h|default:0}},{{instance.usage.local_gb_h|default:0}}
-{% endfor %}
-
-ID,Name,Life time,Disk
-{% for image in usage.images.items %}{{image.id}},{{image.name|addslashes}},{{image.lifetime_day}},{{image.usage.local_gb_h|default:0}}
+Type,Name,Cost,"Life time, days",Created at,Destroyed at
+{% for obj in bill.resources %}{{obj.hier}}{{obj.rtype}},{{obj.name|default:""|addslashes}},{{obj.cost|floatformat:2}},{{obj.lifetime_day}},{{obj.created_at}},{% if obj.destroyed_at %}{{obj.destroyed_at}}{% else %}alive{% endif %}
 {% endfor %}

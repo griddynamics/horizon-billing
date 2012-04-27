@@ -22,5 +22,5 @@
 from django.conf.urls.defaults import *
 
 urlpatterns = patterns('horizon_billing',
-    url(r'^$', 'total.views.usage_total', name='index'),
+    url(r'^$', 'total.views.bill_total', name='index'),
 )
